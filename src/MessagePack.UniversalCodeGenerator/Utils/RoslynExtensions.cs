@@ -90,7 +90,7 @@ namespace MessagePack.CodeGenerator
                 return false;
             }
         }
-        static async Task<AnalyzerResult[]> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
+        static async Task<IAnalyzerResults> GetAnalyzerResults(AnalyzerManager analyzerManager, string csprojPath, params string[] preprocessorSymbols)
         {
             var tempPath = Path.Combine(new FileInfo(csprojPath).Directory.FullName, "__buildtemp");
             try
@@ -104,7 +104,7 @@ namespace MessagePack.CodeGenerator
                     }
                 }
                 // get results of analysis from binarylog
-                return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog")).ToArray();
+                return analyzerManager.Analyze(Path.Combine(tempPath, "build.binlog"));
             }
             finally
             {
@@ -159,7 +159,7 @@ namespace MessagePack.CodeGenerator
         public static AdhocWorkspace GetWorkspace(this AnalyzerManager manager, EnvironmentOptions envOptions)
         {
             // Run builds in parallel
-            List<AnalyzerResult> results = manager.Projects.Values
+            var results = manager.Projects.Values
                 .AsParallel()
                 .Select(p => p.Build(envOptions).FirstOrDefault()) // with envoption
                 .Where(x => x != null)
