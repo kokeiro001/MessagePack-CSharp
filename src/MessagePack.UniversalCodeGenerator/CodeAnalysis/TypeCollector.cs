@@ -206,10 +206,9 @@ namespace MessagePack.CodeGenerator
 
         // --- 
 
-        public TypeCollector(string csProjPath, IEnumerable<string> conditinalSymbols, bool disallowInternal, bool isForceUseMap)
+        public TypeCollector(Compilation compilation, bool disallowInternal, bool isForceUseMap)
         {
             this.csProjPath = csProjPath;
-            var compilation = RoslynExtensions.GetCompilationFromProject(csProjPath, conditinalSymbols.Concat(new[] { CodegeneratorOnlyPreprocessorSymbol }).ToArray()).GetAwaiter().GetResult();
             this.typeReferences = new ReferenceSymbols(compilation);
             this.disallowInternal = disallowInternal;
             this.isForceUseMap = isForceUseMap;

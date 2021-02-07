@@ -1,11 +1,18 @@
 ﻿using MessagePack.CodeGenerator.Generator;
+using Microsoft.Build.Locator;
+using Microsoft.Build.Logging;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.MSBuild;
 using Mono.Options;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.Loader;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MessagePack.CodeGenerator
 {
@@ -70,10 +77,22 @@ namespace MessagePack.CodeGenerator
 
     class Program
     {
-        static int Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
             try
             {
+                var instance = MSBuildLocator.RegisterDefaults();
+                AssemblyLoadContext.Default.Resolving += (assemblyLoadContext, assemblyName) =>
+                {
+                    var path = Path.Combine(instance.MSBuildPath, assemblyName.Name + ".dll");
+                    if (File.Exists(path))
+                    {
+                        return assemblyLoadContext.LoadFromAssemblyPath(path);
+                    }
+
+                    return null;
+                };
+                
                 var cmdArgs = new CommandlineArguments(args);
                 if (!cmdArgs.IsParsed)
                 {
@@ -85,7 +104,9 @@ namespace MessagePack.CodeGenerator
                 var sw = Stopwatch.StartNew();
                 Console.WriteLine("Project Compilation Start:" + cmdArgs.InputPath);
 
-                var collector = new TypeCollector(cmdArgs.InputPath, cmdArgs.ConditionalSymbols, true, cmdArgs.IsUseMap);
+                var compilation = await OpenMSBuildProjectAsync(cmdArgs.InputPath, CancellationToken.None);
+
+                var collector = new TypeCollector(compilation, true, cmdArgs.IsUseMap);
 
                 Console.WriteLine("Project Compilation Complete:" + sw.Elapsed.ToString());
                 Console.WriteLine();
@@ -182,6 +203,21 @@ namespace MessagePack.CodeGenerator
             }
 
             System.IO.File.WriteAllText(path, text, Encoding.UTF8);
+        }
+
+        static async Task<Compilation> OpenMSBuildProjectAsync(string projectPath, CancellationToken cancellationToken)
+        {
+            using var workspace = MSBuildWorkspace.Create();
+
+            var logger = new ConsoleLogger(Microsoft.Build.Framework.LoggerVerbosity.Quiet);
+            var project = await workspace.OpenProjectAsync(projectPath, logger, null, cancellationToken);
+            var compilation = await project.GetCompilationAsync(cancellationToken);
+            if (compilation is null)
+            {
+                throw new NotSupportedException("The project does not support creating Compilation.");
+            }
+
+            return compilation;
         }
     }
 }
